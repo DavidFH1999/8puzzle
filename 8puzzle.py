@@ -49,7 +49,6 @@ def swap(i1, i2):
     last_indexes[0] = i1
     last_indexes[1] = i2
 
-
 # Returns true if the current move reverts the last one
 def was_last_move(i1, i2):
     return i1 == last_indexes[0] and i2 == last_indexes[1]
@@ -57,15 +56,6 @@ def was_last_move(i1, i2):
 # Revert the last move
 def revert_last_move():
     swap(last_indexes[0], last_indexes[1])
-
-def print_table():
-    table = str(cur_state[0]) + " | " + str(cur_state[1]) + " | " + str(cur_state[2])
-    table += "\n---------\n"
-    table += str(cur_state[3]) + " | " + str(cur_state[4]) + " | " + str(cur_state[5])
-    table += "\n---------\n"
-    table += str(cur_state[6]) + " | " + str(cur_state[7]) + " | " + str(cur_state[8]) + "\n"
-    print(table)
-
 
 '''
 Any pair of tiles i and j, where i < j, but i appears after j in the 3*3 field is considered an inversion
@@ -88,7 +78,7 @@ def solvable():
 def get_amount_misplaced_tiles():
     misplaced_tiles = 0
     for i in range(9):
-        if cur_state[i] != i:
+        if cur_state[i] != goal[i] and cur_state[i] != 0:  # Skip the blank/0 tile
             misplaced_tiles += 1
     return misplaced_tiles
 
@@ -128,10 +118,9 @@ def hamming_distance():
 
 
 # Algorithm region
-def algorithm1():
+def hamming():
     count = 0  # The 'count' variable indicates the nodes expanded
     while not check():
-        print_table()
         amount_misplaced_tiles = hamming_distance()[:]
         smallest_distance = min(amount_misplaced_tiles)
         if amount_misplaced_tiles[0] == smallest_distance:
@@ -153,35 +142,124 @@ def algorithm1():
         count += 1
     return count
 
+# Calculate Manhattan distance
+def manhattan_distance():
+    total_distance = 0
+    for i in range(9):
+        if cur_state[i] == 0:
+            continue  # Skip the blank tile
+        # Calculate the positions (x,y) for current and goal positions
+        current_position = (i // 3, i % 3)  # divmod(i, 3) gives (quotient, remainder)
+        goal_position = (cur_state[i] // 3, cur_state[i] % 3)  # Number's correct position
+        # Add Manhattan distance for this tile
+        total_distance += abs(current_position[0] - goal_position[0]) + abs(current_position[1] - goal_position[1])
+    return total_distance
 
-def algorithm2():
+
+def manhattan_distance_single_tile(current_index, value):
+    # Calculate the positions (x,y) for current and goal positions
+    current_position = (current_index // 3, current_index % 3)
+    goal_position = (value // 3, value % 3)  # Number's correct position
+    # Calculate and return Manhattan distance for this tile
+    return abs(current_position[0] - goal_position[0]) + abs(current_position[1] - goal_position[1])
+
+def total_manhattan_distance():
+    total_distance = 0
+    for index, value in enumerate(cur_state):
+        if value == 0:
+            continue  # Skip the blank tile
+        total_distance += manhattan_distance_single_tile(index, value)
+    return total_distance
+
+# Algorithm 2 implementation using Manhattan Distance
+def manhattan():
     count = 0
     while not check():
-        # Insert algorithm here
-        count += 1
+        best_move = None
+        lowest_distance = None
+
+        # Save current state to revert after checking moves
+        state_before_move = cur_state[:]
+
+        # Check each possible move and calculate the Manhattan distance
+        for i in range(9):
+            if move_up(i):
+                distance = total_manhattan_distance()
+                if lowest_distance is None or distance < lowest_distance:
+                    lowest_distance = distance
+                    best_move = ('up', i)
+                cur_state[:] = state_before_move  # Revert to state before move
+
+            if move_right(i):
+                distance = total_manhattan_distance()
+                if lowest_distance is None or distance < lowest_distance:
+                    lowest_distance = distance
+                    best_move = ('right', i)
+                cur_state[:] = state_before_move
+
+            if move_down(i):
+                distance = total_manhattan_distance()
+                if lowest_distance is None or distance < lowest_distance:
+                    lowest_distance = distance
+                    best_move = ('down', i)
+                cur_state[:] = state_before_move
+
+            if move_left(i):
+                distance = total_manhattan_distance()
+                if lowest_distance is None or distance < lowest_distance:
+                    lowest_distance = distance
+                    best_move = ('left', i)
+                cur_state[:] = state_before_move
+
+        # Perform the best move
+        if best_move:
+            direction, index = best_move
+            if direction == 'up': move_up(index)
+            elif direction == 'right': move_right(index)
+            elif direction == 'down': move_down(index)
+            elif direction == 'left': move_left(index)
+
+        count += 1  # Increment the number of moves made
+
     return count
 
 
 if __name__ == '__main__':
-    random.shuffle(cur_state)  # Initiate array
-    if not solvable():
-        print_table()
-        print("This given state cannot be solved since the amount of inversions is odd!")
-        exit()
-    # Save random start state to a backup to compare the algorithms with the same start state used
-    state_backup = cur_state[:]
+    solvable_puzzles = []
+    while len(solvable_puzzles) < 100:
+        # generate a random puzzle
+        random.shuffle(cur_state)
+        # check if its solvable
+        if solvable():
+            # If solvable, store it for later use
+            solvable_puzzles.append(cur_state[:]) # Make sure to append a copy of the state
 
-    # Algorithm 1
-    start = time.time()
-    count1 = algorithm1()
-    total_time1 = round(time.time() - start, 3)
-    print("ALGORITHM_1 took " + str(total_time1) + " seconds. " + str(count1) + " nodes were expanded.")
-    print_table()
+    # Now you have 100 solvable puzzles stored in solvable_puzzles
+    # Next, run Algorithm 1 and Algorithm 2 on each puzzle and record the results
 
-    # Algorithm 2
-    # Reset state to the defined random beginner start state again for a better comparison of the algorithms
-    cur_state = state_backup[:]
-    start = time.time()
-    # count2 = algorithm2()
-    total_time_2 = round(time.time() - start, 3)
-    # print("ALGORITHM_2 took " + str(total_time_2) + " seconds. " + str(count2) + " nodes were expanded.")
+    for puzzle in solvable_puzzles:
+        # Set the current state to the puzzle
+        cur_state = puzzle
+
+        # Run Algorithm 1
+        # Record nodes expanded and time taken
+
+        # Reset the current state to the puzzle again
+        cur_state = puzzle
+
+        # Run Algorithm 2
+        # Record nodes expanded and time taken
+
+        # Algorithm 1
+        start = time.time()
+        count1 = hamming()
+        total_time1 = round(time.time() - start, 3)
+        print("ALGORITHM_1 took " + str(total_time1) + " seconds. " + str(count1) + " nodes were expanded.")
+
+        # Algorithm 2
+        # Reset state to the defined random beginner start state again for a better comparison of the algorithms
+        cur_state = state_backup[:]
+        start = time.time()
+        # count2 = algorithm2()
+        total_time_2 = round(time.time() - start, 3)
+        # print("ALGORITHM_2 took " + str(total_time_2) + " seconds. " + str(count2) + " nodes were expanded.")
