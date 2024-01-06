@@ -8,39 +8,47 @@ goal = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 last_indexes = [0, 0]
 last_indexes_backup = [0, 0]
 
-#region Methods
+
+# region Methods
 # Moves up the specified field's value if possible
 def move_up(i):
     if i > 2 and is_free(i - 3) and not was_last_move(i - 3, i):
-        swap(i-3, i)
+        swap(i - 3, i)
         return True
+
 
 # Moves down the specified field's value if possible
 def move_down(i):
     if i < 6 and is_free(i + 3) and not was_last_move(i, i + 3):
-        swap(i, i+3)
+        swap(i, i + 3)
         return True
+
 
 # Moves the specified field's value to the right if possible
 def move_right(i):
     if i % 3 != 2 and is_free(i + 1) and not was_last_move(i, i + 1):
-        swap(i, i+1)
+        swap(i, i + 1)
         return True
+
 
 # Moves the specified field's value to the left
 def move_left(i):
     if i % 3 != 0 and is_free(i - 1) and not was_last_move(i - 1, i):
-        swap(i-1, i)
+        swap(i - 1, i)
         return True
-#endregion
+
+
+# endregion
 
 # Returns whether the current state is the goal state
 def check():
     return cur_state == goal
 
+
 # Returns whether the specified field is free (0)
 def is_free(i):
     return 8 >= i >= 0 == cur_state[i]
+
 
 # Swaps the specified field's value with the empty field
 def swap(i1, i2):
@@ -49,13 +57,16 @@ def swap(i1, i2):
     last_indexes[0] = i1
     last_indexes[1] = i2
 
+
 # Returns true if the current move reverts the last one
 def was_last_move(i1, i2):
     return i1 == last_indexes[0] and i2 == last_indexes[1]
 
+
 # Revert the last move
 def revert_last_move():
     swap(last_indexes[0], last_indexes[1])
+
 
 '''
 Any pair of tiles i and j, where i < j, but i appears after j in the 3*3 field is considered an inversion
@@ -63,6 +74,8 @@ If there is an odd number of inversions in the current state, the 8-puzzle becom
 Since each (legal) move changes the amount of inversions by an even number (0, 2), the state is unsolvable when an
 odd amount of inversions is found because the amount of inversions in the goal state is 0
 '''
+
+
 def get_inversions():
     inversions = 0
     for i in range(9):
@@ -71,9 +84,11 @@ def get_inversions():
                 inversions += 1
     return inversions
 
+
 # Uses the get_inversions() function to determine whether the current state is solvable or not
 def solvable():
     return get_inversions() % 2 == 0
+
 
 def get_amount_misplaced_tiles():
     misplaced_tiles = 0
@@ -86,13 +101,17 @@ def get_amount_misplaced_tiles():
 def save_last_indexes():
     last_indexes_backup[0], last_indexes_backup[1] = last_indexes[0], last_indexes[1]
 
+
 def restore_last_indexes():
     last_indexes[0], last_indexes[1] = last_indexes_backup[0], last_indexes_backup[1]
+
 
 '''
 Checks all available legal moves and calculates the hamming distance
 The hamming distance is incremented by one for each tile that sits on an incorrect position
 '''
+
+
 def hamming_distance():
     amount_misplaced_tiles = [10, 10, 10, 10]
     for i in range(9):
@@ -142,6 +161,7 @@ def hamming():
         count += 1
     return count
 
+
 # Calculate Manhattan distance
 def manhattan_distance():
     total_distance = 0
@@ -149,7 +169,7 @@ def manhattan_distance():
         if cur_state[i] == 0:
             continue  # Skip the blank tile
         # Calculate the positions (x,y) for current and goal positions
-        current_position = (i // 3, i % 3)  # divmod(i, 3) gives (quotient, remainder)
+        current_position = (i // 3, i % 3)  # div mod(i, 3) gives (quotient, remainder)
         goal_position = (cur_state[i] // 3, cur_state[i] % 3)  # Number's correct position
         # Add Manhattan distance for this tile
         total_distance += abs(current_position[0] - goal_position[0]) + abs(current_position[1] - goal_position[1])
@@ -163,6 +183,7 @@ def manhattan_distance_single_tile(current_index, value):
     # Calculate and return Manhattan distance for this tile
     return abs(current_position[0] - goal_position[0]) + abs(current_position[1] - goal_position[1])
 
+
 def total_manhattan_distance():
     total_distance = 0
     for index, value in enumerate(cur_state):
@@ -170,6 +191,7 @@ def total_manhattan_distance():
             continue  # Skip the blank tile
         total_distance += manhattan_distance_single_tile(index, value)
     return total_distance
+
 
 # Algorithm 2 implementation using Manhattan Distance
 def manhattan():
@@ -214,10 +236,14 @@ def manhattan():
         # Perform the best move
         if best_move:
             direction, index = best_move
-            if direction == 'up': move_up(index)
-            elif direction == 'right': move_right(index)
-            elif direction == 'down': move_down(index)
-            elif direction == 'left': move_left(index)
+            if direction == 'up':
+                move_up(index)
+            elif direction == 'right':
+                move_right(index)
+            elif direction == 'down':
+                move_down(index)
+            elif direction == 'left':
+                move_left(index)
 
         count += 1  # Increment the number of moves made
 
@@ -232,7 +258,7 @@ if __name__ == '__main__':
         # check if its solvable
         if solvable():
             # If solvable, store it for later use
-            solvable_puzzles.append(cur_state[:]) # Make sure to append a copy of the state
+            solvable_puzzles.append(cur_state[:])  # Make sure to append a copy of the state
 
     # Now you have 100 solvable puzzles stored in solvable_puzzles
     # Next, run Algorithm 1 and Algorithm 2 on each puzzle and record the results
@@ -245,7 +271,7 @@ if __name__ == '__main__':
         # Record nodes expanded and time taken
 
         # Reset the current state to the puzzle again
-        cur_state = puzzle
+        # cur_state = puzzle
 
         # Run Algorithm 2
         # Record nodes expanded and time taken
@@ -258,7 +284,7 @@ if __name__ == '__main__':
 
         # Algorithm 2
         # Reset state to the defined random beginner start state again for a better comparison of the algorithms
-        cur_state = state_backup[:]
+        # cur_state = state_backup[:]
         start = time.time()
         # count2 = algorithm2()
         total_time_2 = round(time.time() - start, 3)
