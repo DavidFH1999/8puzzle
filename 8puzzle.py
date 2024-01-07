@@ -1,297 +1,257 @@
+import heapq
 import random
 import time
-import heapq
-
-# Global variables
-cur_state = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-state_backup = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-goal = [1, 2, 3, 4, 5, 6, 7, 8, 0]
-last_indexes = [0, 0]
-last_indexes_backup = [0, 0]
-manhattan_dataset = []
-hamming_dataset = []
+import numpy as np
+from memory_profiler import memory_usage
 
 
-# region Methods
-# Moves up the specified field's value if possible
-def move_up(i):
-    if i > 2 and is_free(i - 3) and not was_last_move(i - 3, i):
-        swap(i - 3, i)
-        return True
+class PuzzleState:
+    """
+    Attributes:
+        state (list): The current configuration of the 8-puzzle.
+        goal_state (list): The target configuration that the puzzle is trying to achieve.
+        moves (int): The number of moves taken to reach this state from the start state.
+        prev (PuzzleState): Reference to the previous PuzzleState for tracking the solution path.
+        hamming (int): The hamming distance of the current state from the goal state.
+        manhattan (int): The manhattan distance of the current state from the goal state.
+    """
+
+    def __init__(self, state, goal_state, moves=0, prev=None):
+        self.state = state
+        self.goal_state = goal_state
+        self.moves = moves
+        self.prev = prev
+        self.hamming = self.calculate_hamming_distance()
+        self.manhattan = self.calculate_manhattan_distance()
+
+    def calculate_inversions(self):
+        """
+        Calculate the number of inversions in the current state. An inversion is a pair of tiles
+        that are in the reverse order from their order in the goal state.
+
+        Returns:
+            int: The number of inversions.
+        """
+        inv_count = 0
+        for i in range(len(self.state)):
+            for j in range(i + 1, len(self.state)):
+                if self.state[i] > self.state[j] != 0 and self.state[i] != 0:
+                    inv_count += 1
+        return inv_count
+
+    def calculate_hamming_distance(self):
+        """
+        Calculate the Hamming distance of the current state from the goal state. The Hamming distance
+        is the number of tiles that are in the wrong position.
+
+        Returns:
+            int: The Hamming distance.
+        """
+        return sum(1 for i, tile in enumerate(self.state) if tile != 0 and tile != self.goal_state[i])
+
+    def calculate_manhattan_distance(self):
+        """
+        Calculate the Manhattan distance of the current state from the goal state. The Manhattan distance
+        is the sum of the distances of each tile from its goal position.
+
+        Returns:
+            int: The Manhattan distance.
+        """
+        distance = 0
+        for i, tile in enumerate(self.state):
+            if tile != 0:
+                goal_row, goal_col = divmod(self.goal_state.index(tile), 3)
+                current_row, current_col = divmod(i, 3)
+                distance += abs(goal_row - current_row) + abs(goal_col - current_col)
+        return distance
+
+    def is_goal(self):
+        """
+        Check if the current state is the goal state.
+
+        Returns:
+            bool: True if the current state is the goal state, False otherwise.
+        """
+        return self.state == self.goal_state
+
+    def __lt__(self, other):
+        """
+        Compare two PuzzleStates based on their estimated cost to reach the goal state.
+        This is used by the priority queue to order states.
+
+        Args:
+            other (PuzzleState): The other PuzzleState to compare with.
+
+        Returns:
+            bool: True if the current state has a lower estimated cost than the other state.
+        """
+        return (self.moves + self.manhattan) < (other.moves + other.manhattan)
 
 
-# Moves down the specified field's value if possible
-def move_down(i):
-    if i < 6 and is_free(i + 3) and not was_last_move(i, i + 3):
-        swap(i, i + 3)
-        return True
+def get_neighbors(state):
+    """
+    Generate all possible moves (neighbors) from the current state by sliding a tile into the blank space.
+
+    Args:
+        state (list): The current configuration of the 8-puzzle.
+
+    Returns:
+        list: A list of new states that can be reached from the current state.
+    """
+    moves = []
+    b_idx = state.index(0)  # Find the index of the blank tile (represented by 0)
+    b_row, b_col = divmod(b_idx, 3)  # Get the row and column of the blank tile
+
+    # Possible movements: up, down, left, right
+    neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+    for dr, dc in neighbors:
+        new_row, new_col = b_row + dr, b_col + dc
+        if 0 <= new_row < 3 and 0 <= new_col < 3:  # Ensure the move is within bounds
+            new_idx = new_row * 3 + new_col
+            new_state = state[:]
+            new_state[b_idx], new_state[new_idx] = new_state[new_idx], new_state[
+                b_idx]  # Swap the blank with the adjacent tile
+            moves.append(new_state)
+    return moves
 
 
-# Moves the specified field's value to the right if possible
-def move_right(i):
-    if i % 3 != 2 and is_free(i + 1) and not was_last_move(i, i + 1):
-        swap(i, i + 1)
-        return True
+def a_star(initial_state, goal_state, heuristic='manhattan'):
+    """
+    Solve the 8-puzzle game using the A* search algorithm.
+
+    Args:
+        initial_state (list): The starting configuration of the 8-puzzle.
+        goal_state (list): The target configuration of the 8-puzzle.
+        heuristic (str): The heuristic to use ('manhattan' or 'hamming').
+
+    Returns:
+        list: The sequence of moves from the initial state to the goal state, or None if no solution.
+    """
+    start = PuzzleState(initial_state, goal_state)
+    frontier = []  # Initialize the priority queue with the start state
+    heapq.heappush(frontier, (0, start))
+    explored = set()  # Set of explored states to avoid revisiting
+
+    while frontier:
+        cost, current_state = heapq.heappop(frontier)
+
+        if current_state.is_goal():
+            path = []
+            while current_state.prev:
+                path.append(current_state.state)
+                current_state = current_state.prev
+            return path[::-1]  # Return the path from the initial state to the goal state
+
+        explored.add(tuple(current_state.state))
+        for neighbor in get_neighbors(current_state.state):
+            if tuple(neighbor) not in explored:
+                next_state = PuzzleState(neighbor, goal_state, current_state.moves + 1, current_state)
+                if heuristic == 'hamming':
+                    heapq.heappush(frontier, (next_state.moves + next_state.hamming, next_state))
+                else:  # default is manhattan
+                    heapq.heappush(frontier, (next_state.moves + next_state.manhattan, next_state))
+
+    return None  # Return None if no solution is found
 
 
-# Moves the specified field's value to the left
-def move_left(i):
-    if i % 3 != 0 and is_free(i - 1) and not was_last_move(i - 1, i):
-        swap(i - 1, i)
-        return True
+def measure_performance(states, goal_state):
+    """
+    Measure the performance of the A* algorithm using both Hamming and Manhattan heuristics.
 
+    Args:
+        states (list): A list of initial configurations to solve.
+        goal_state (list): The target configuration for all the puzzles.
 
-# endregion
+    Returns:
+        dict: A dictionary containing the times and memory usage for each heuristic.
+    """
+    results = {"hamming": {"times": [], "memory": []},
+               "manhattan": {"times": [], "memory": []}}
 
-# Returns whether the current state is the goal state
-def check():
-    return cur_state == goal
+    for i, state in enumerate(states):
+        # Measure performance using Hamming heuristic
+        start_time = time.time()
+        mem_usage = memory_usage((a_star, (state, goal_state, 'hamming')), max_usage=True, retval=True)
+        end_time = time.time()
+        results["hamming"]["memory"].append(mem_usage[0])
+        results["hamming"]["times"].append(end_time - start_time)
 
+        # Measure performance using Manhattan heuristic
+        start_time = time.time()
+        mem_usage = memory_usage((a_star, (state, goal_state, 'manhattan')), max_usage=True, retval=True)
+        end_time = time.time()
+        results["manhattan"]["memory"].append(mem_usage[0])
+        results["manhattan"]["times"].append(end_time - start_time)
 
-# Returns whether the specified field is free (0)
-def is_free(i):
-    return 8 >= i >= 0 == cur_state[i]
+        # After each solve, calculate and format the progress output
+        progress_output = "{}/100".format(i + 1).rjust(7, ' ')  # Right justify to match the length of "100/100"
 
-
-# Swaps the specified field's value with the empty field
-def swap(i1, i2):
-    a, b = cur_state[i1], cur_state[i2]
-    cur_state[i1], cur_state[i2] = b, a
-    last_indexes[0] = i1
-    last_indexes[1] = i2
-
-
-# Returns true if the current move reverts the last one
-def was_last_move(i1, i2):
-    return i1 == last_indexes[0] and i2 == last_indexes[1]
-
-
-# Revert the last move
-def revert_last_move():
-    swap(last_indexes[0], last_indexes[1])
-
-
-'''
-Any pair of tiles i and j, where i < j, but i appears after j in the 3*3 field is considered an inversion
-If there is an odd number of inversions in the current state, the 8-puzzle becomes unsolvable
-Since each (legal) move changes the amount of inversions by an even number (0, 2), the state is unsolvable when an
-odd amount of inversions is found because the amount of inversions in the goal state is 0
-'''
-
-
-def get_inversions():
-    inversions = 0
-    for i in range(9):
-        for j in range(i, 9):
-            if j < cur_state[i] != 0:
-                inversions += 1
-    return inversions
-
-
-# Uses the get_inversions() function to determine whether the current state is solvable or not
-def solvable():
-    return get_inversions() % 2 == 0
-
-
-def get_amount_misplaced_tiles():
-    misplaced_tiles = 0
-    for i in range(9):
-        if cur_state[i] != goal[i] and cur_state[i] != 0:  # Skip the blank/0 tile
-            misplaced_tiles += 1
-    return misplaced_tiles
-
-
-def save_last_indexes():
-    last_indexes_backup[0], last_indexes_backup[1] = last_indexes[0], last_indexes[1]
-
-
-def restore_last_indexes():
-    last_indexes[0], last_indexes[1] = last_indexes_backup[0], last_indexes_backup[1]
-
-
-'''
-Checks all available legal moves and calculates the hamming distance
-The hamming distance is incremented by one for each tile that sits on an incorrect position
-'''
-
-
-def hamming_distance():
-    amount_misplaced_tiles = [10, 10, 10, 10]
-    for i in range(9):
-        save_last_indexes()
-        if move_up(i):
-            move_up(i)
-            amount_misplaced_tiles[0] = get_amount_misplaced_tiles()
-            revert_last_move()
-        elif move_right(i):
-            move_right(i)
-            amount_misplaced_tiles[1] = get_amount_misplaced_tiles()
-            revert_last_move()
-        elif move_down(i):
-            move_down(i)
-            amount_misplaced_tiles[2] = get_amount_misplaced_tiles()
-            revert_last_move()
-        elif move_left(i):
-            move_left(i)
-            amount_misplaced_tiles[3] = get_amount_misplaced_tiles()
-            revert_last_move()
-        restore_last_indexes()
-    return amount_misplaced_tiles
-
-
-# Algorithm region
-def hamming():
-    count = 0  # The 'count' variable indicates the nodes expanded
-    while not check():
-        amount_misplaced_tiles = hamming_distance()[:]
-        smallest_distance = min(amount_misplaced_tiles)
-        if amount_misplaced_tiles[0] == smallest_distance:
-            for i in range(9):
-                if move_up(i):
-                    break
-        elif amount_misplaced_tiles[1] == smallest_distance:
-            for i in range(9):
-                if move_right(i):
-                    break
-        elif amount_misplaced_tiles[2] == smallest_distance:
-            for i in range(9):
-                if move_down(i):
-                    break
+        # Print a new line after every 10 puzzles for readability, also ensure same length for each output
+        if (i + 1) % 10 == 0:
+            print(progress_output)  # New line after every 10th puzzle
         else:
-            for i in range(9):
-                if move_left(i):
-                    break
-        count += 1
-    return count
+            print(progress_output, end=' ', flush=True)  # Stay on the same line for other puzzles
+
+    return results
 
 
-# Calculate Manhattan distance
-def manhattan_distance():
-    total_distance = 0
-    for i in range(9):
-        if cur_state[i] == 0:
-            continue  # Skip the blank tile
-        # Calculate the positions (x,y) for current and goal positions
-        current_position = (i // 3, i % 3)  # div mod(i, 3) gives (quotient, remainder)
-        goal_position = (cur_state[i] // 3, cur_state[i] % 3)  # Number's correct position
-        # Add Manhattan distance for this tile
-        total_distance += abs(current_position[0] - goal_position[0]) + abs(current_position[1] - goal_position[1])
-    return total_distance
+def generate_random_solvable_goal():
+    """
+    Generate a random solvable goal configuration for the 8-puzzle.
+
+    Returns:
+        list: A solvable configuration that can be used as a goal state.
+    """
+    canonical_goal_state = [1, 2, 3, 4, 5, 6, 7, 8, 0]
+    while True:
+        state = random.sample(range(9), 9)
+        if PuzzleState(state, canonical_goal_state).calculate_inversions() % 2 == 0:
+            return state
 
 
-def manhattan_distance_single_tile(current_index, value):
-    # Calculate the positions (x,y) for current and goal positions
-    current_position = (current_index // 3, current_index % 3)
-    goal_position = (value // 3, value % 3)  # Number's correct position
-    # Calculate and return Manhattan distance for this tile
-    return abs(current_position[0] - goal_position[0]) + abs(current_position[1] - goal_position[1])
+def generate_random_solvable_state_to_goal(goal_state):
+    """
+    Generate a random start state that is solvable to the specified goal state.
 
+    Args:
+        goal_state (list): The goal configuration that the start state needs to be solvable to.
 
-def total_manhattan_distance():
-    total_distance = 0
-    for index, value in enumerate(cur_state):
-        if value == 0:
-            continue  # Skip the blank tile
-        total_distance += manhattan_distance_single_tile(index, value)
-    return total_distance
-
-
-# Algorithm 2 implementation using Manhattan Distance
-def manhattan():
-    count = 0
-    while not check():
-        best_move = None
-        lowest_distance = None
-
-        # Save current state to revert after checking moves
-        state_before_move = cur_state[:]
-
-        # Check each possible move and calculate the Manhattan distance
-        for i in range(9):
-            if move_up(i):
-                distance = total_manhattan_distance()
-                if lowest_distance is None or distance < lowest_distance:
-                    lowest_distance = distance
-                    best_move = ('up', i)
-                cur_state[:] = state_before_move  # Revert to state before move
-
-            if move_right(i):
-                distance = total_manhattan_distance()
-                if lowest_distance is None or distance < lowest_distance:
-                    lowest_distance = distance
-                    best_move = ('right', i)
-                cur_state[:] = state_before_move
-
-            if move_down(i):
-                distance = total_manhattan_distance()
-                if lowest_distance is None or distance < lowest_distance:
-                    lowest_distance = distance
-                    best_move = ('down', i)
-                cur_state[:] = state_before_move
-
-            if move_left(i):
-                distance = total_manhattan_distance()
-                if lowest_distance is None or distance < lowest_distance:
-                    lowest_distance = distance
-                    best_move = ('left', i)
-                cur_state[:] = state_before_move
-
-        # Perform the best move
-        if best_move:
-            direction, index = best_move
-            if direction == 'up':
-                move_up(index)
-            elif direction == 'right':
-                move_right(index)
-            elif direction == 'down':
-                move_down(index)
-            elif direction == 'left':
-                move_left(index)
-
-        count += 1  # Increment the number of moves made
-
-    return count
+    Returns:
+        list: A random solvable start configuration.
+    """
+    while True:
+        state = random.sample(range(9), 9)
+        if PuzzleState(state, goal_state).calculate_inversions() % 2 == PuzzleState(goal_state,
+                                                                                    goal_state).calculate_inversions() % 2:
+            return state
 
 
 if __name__ == '__main__':
-    solvable_puzzles = []
-    while len(solvable_puzzles) < 1:
-        # generate a random puzzle
-        random.shuffle(cur_state)
-        # check if its solvable
-        if solvable():
-            # If solvable, store it for later use
-            solvable_puzzles.append(cur_state[:])  # Make sure to append a copy of the state
+    program_start_time = time.time()  # Capture the start time of the program
 
-    # Now you have 100 solvable puzzles stored in solvable_puzzles
-    # Next, run Algorithm 1 and Algorithm 2 on each puzzle and record the results
+    random_goal_state = generate_random_solvable_goal()  # Generate a random solvable goal state
 
-    for puzzle in solvable_puzzles:
-        # Set the current state to the puzzle
-        cur_state = puzzle
+    random_states = [generate_random_solvable_state_to_goal(random_goal_state) for _ in
+                     range(100)]  # Generate 100 random solvable states
 
-        # Run Algorithm 1
-        # Record nodes expanded and time taken
+    performance_results = measure_performance(random_states,
+                                              random_goal_state)  # Measure performance for both heuristics
 
-        # Reset the current state to the puzzle again
-        # cur_state = puzzle
+    # Print statistics for Hamming heuristic
+    print("\nHamming Statistics:")
+    print("Time Mean:", np.mean(performance_results["hamming"]["times"]))
+    print("Time Std:", np.std(performance_results["hamming"]["times"]))
+    print("Memory Mean:", np.mean(performance_results["hamming"]["memory"]))
+    print("Memory Std:", np.std(performance_results["hamming"]["memory"]))
 
+    # Print statistics for Manhattan heuristic
+    print("\nManhattan Statistics:")
+    print("Time Mean:", np.mean(performance_results["manhattan"]["times"]))
+    print("Time Std:", np.std(performance_results["manhattan"]["times"]))
+    print("Memory Mean:", np.mean(performance_results["manhattan"]["memory"]))
+    print("Memory Std:", np.std(performance_results["manhattan"]["memory"]))
 
-
-
-        # Run Algorithm 2
-        # Record nodes expanded and time taken
-
-        # # Algorithm 1
-        # start = time.time()
-        # count1 = hamming()
-        # total_time1 = round(time.time() - start, 3)
-        # print("ALGORITHM_1 took " + str(total_time1) + " seconds. " + str(count1) + " nodes were expanded.")
-        #
-        # # Algorithm 2
-        # # Reset state to the defined random beginner start state again for a better comparison of the algorithms
-        # # cur_state = state_backup[:]
-        # start = time.time()
-        # # count2 = algorithm2()
-        # total_time_2 = round(time.time() - start, 3)
-        # # print("ALGORITHM_2 took " + str(total_time_2) + " seconds. " + str(count2) + " nodes were expanded.")
+    program_end_time = time.time()  # Capture the end time of the program
+    runtime = program_end_time - program_start_time  # Calculate the runtime
+    print(f"\nProgram runtime: {runtime} seconds")  # Print the runtime
