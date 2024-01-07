@@ -1,12 +1,15 @@
 import random
 import time
+import heapq
 
 # Global variables
 cur_state = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 state_backup = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-goal = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+goal = [1, 2, 3, 4, 5, 6, 7, 8, 0]
 last_indexes = [0, 0]
 last_indexes_backup = [0, 0]
+manhattan_dataset = []
+hamming_dataset = []
 
 
 # region Methods
@@ -252,7 +255,7 @@ def manhattan():
 
 if __name__ == '__main__':
     solvable_puzzles = []
-    while len(solvable_puzzles) < 100:
+    while len(solvable_puzzles) < 1:
         # generate a random puzzle
         random.shuffle(cur_state)
         # check if its solvable
@@ -273,19 +276,22 @@ if __name__ == '__main__':
         # Reset the current state to the puzzle again
         # cur_state = puzzle
 
+
+
+
         # Run Algorithm 2
         # Record nodes expanded and time taken
 
-        # Algorithm 1
-        start = time.time()
-        count1 = hamming()
-        total_time1 = round(time.time() - start, 3)
-        print("ALGORITHM_1 took " + str(total_time1) + " seconds. " + str(count1) + " nodes were expanded.")
-
-        # Algorithm 2
-        # Reset state to the defined random beginner start state again for a better comparison of the algorithms
-        # cur_state = state_backup[:]
-        start = time.time()
-        # count2 = algorithm2()
-        total_time_2 = round(time.time() - start, 3)
-        # print("ALGORITHM_2 took " + str(total_time_2) + " seconds. " + str(count2) + " nodes were expanded.")
+        # # Algorithm 1
+        # start = time.time()
+        # count1 = hamming()
+        # total_time1 = round(time.time() - start, 3)
+        # print("ALGORITHM_1 took " + str(total_time1) + " seconds. " + str(count1) + " nodes were expanded.")
+        #
+        # # Algorithm 2
+        # # Reset state to the defined random beginner start state again for a better comparison of the algorithms
+        # # cur_state = state_backup[:]
+        # start = time.time()
+        # # count2 = algorithm2()
+        # total_time_2 = round(time.time() - start, 3)
+        # # print("ALGORITHM_2 took " + str(total_time_2) + " seconds. " + str(count2) + " nodes were expanded.")
